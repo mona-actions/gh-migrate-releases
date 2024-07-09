@@ -9,6 +9,7 @@
 *.dylib
 *.tar.gz
 *.zip
+*.json
 
 # Test binary, built with `go test -c`
 *.test

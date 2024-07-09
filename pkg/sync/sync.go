@@ -1,25 +1,48 @@
 package sync
 
 import (
+	"log"
+
+	"github.com/mona-actions/gh-migrate-releases/internal/api"
 	"github.com/pterm/pterm"
 )
 
-func Syncreleases() {
-	// Get all releases from source organization
-	releasesSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Fetching releases from organization...")
-	//releases := team.GetSourceOrganizationreleases()
-	releasesSpinnerSuccess.Success()
+func SyncReleases() {
+	// Get all teams from source organization
+	//teamsSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Fetching releases from repository...")
+	releases, err := api.GetSourceRepositoryReleases()
+	if err != nil {
+		pterm.Error.Printf("Error getting releases: %v", err)
+		//teamsSpinnerSuccess.Fail()
+	}
+	//teamsSpinnerSuccess.Success()
 
-	// Create releases in target organization
-	createreleasesSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Creating releases in target organization...")
-	// for _, team := range releases {
-	// 	// Map members
-	// 	if os.Getenv("GHMT_MAPPING_FILE") != "" {
-	// 		team = mapMembers(team)
-	// 	}
-	// 	team.CreateTeam()
-	// }
-	createreleasesSpinnerSuccess.Success()
+	// Create teams in target organization
+	createReleasesSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...")
+	for _, release := range releases {
+		createReleasesSpinnerSuccess.UpdateText("Creating release: " + release.GetName())
+		newRelease, err := api.CreateRelease(release)
+		if err != nil {
+			pterm.Error.Printf("Error creating release: %v", err)
+		}
+		createReleasesSpinnerSuccess.UpdateText("Downloading assets...")
+		for _, asset := range release.Assets {
+			createReleasesSpinnerSuccess.UpdateText("Downloading asset..." + asset.GetName())
+			err := api.DownloadReleaseAssets(asset)
+			if err != nil {
+				pterm.Error.Printf("Error downloading assets: %v", err)
+			}
+			createReleasesSpinnerSuccess.UpdateText("Uploading assets..." + asset.GetName())
+			log.Println("New Release ID: ", *newRelease.ID, newRelease.GetAssetsURL(), newRelease.GetUploadURL())
+			err = api.UploadAssetViaURL(newRelease.GetUploadURL(), asset)
+			if err != nil {
+				pterm.Error.Printf("Error uploading assets: %v", err)
+				createReleasesSpinnerSuccess.Fail()
+			}
+		}
+
+	}
+	createReleasesSpinnerSuccess.Success()
 }
 
 // func mapMembers(team team.Team) team.Team {

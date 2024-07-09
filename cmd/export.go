@@ -14,8 +14,8 @@ import (
 // exportCmd represents the export command
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "Creates a CSV file of the releases, membership, repos, and team repo roles in an organization",
-	Long:  "Creates a CSV file of the releases, membership, repos, and team repo roles in an organization",
+	Short: "Creates a CSV file of the teams, membership, repos, and team repo roles in an organization",
+	Long:  "Creates a CSV file of the teams, membership, repos, and team repo roles in an organization",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get parameters
 		organization := cmd.Flag("organization").Value.String()
@@ -43,7 +43,7 @@ var exportCmd = &cobra.Command{
 		viper.BindEnv("REPOSITORY")
 
 		// Call exportCSV
-		export.CreateCSVs()
+		export.CreateJSONs()
 	},
 }
 

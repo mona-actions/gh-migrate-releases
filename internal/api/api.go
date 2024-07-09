@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -14,6 +17,7 @@ import (
 
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
 	"github.com/google/go-github/v62/github"
+	"github.com/mona-actions/gh-migrate-releases/internal/file"
 	"github.com/shurcooL/githubv4"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -24,6 +28,8 @@ type Releases []Release
 type Release struct {
 	*github.RepositoryRelease
 }
+
+var tmpDir = "tmp"
 
 func newGHGraphqlClient(token string) *githubv4.Client {
 	hostname := viper.GetString("SOURCE_HOSTNAME")
@@ -85,27 +91,29 @@ func GetSourceRepositoryReleases() ([]*github.RepositoryRelease, error) {
 	return releases, nil
 }
 
-func GetReleasesAssets(release *github.RepositoryRelease) error {
-	client := newGHRestClient(viper.GetString("source_token"))
+func DownloadReleaseAssets(asset *github.ReleaseAsset) error {
 
-	log.Println("Getting assets for release: ", *release.Name, *release.TagName)
-	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	assets, _, err := client.Repositories.ListReleaseAssets(ctx, viper.Get("SOURCE_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), release.GetID(), &github.ListOptions{})
-	log.Println("assets", assets)
+	token := viper.Get("SOURCE_TOKEN").(string)
+
+	// Download the asset
+
+	url := asset.GetBrowserDownloadURL()
+	dirName := tmpDir
+	fileName := dirName + "/" + asset.GetName()
+
+	err := os.MkdirAll(dirName, 0755)
 	if err != nil {
-		fmt.Println("Error getting release assets: ", err)
+		return err
 	}
 
-	var assetsData = []map[string]string{}
-	for _, asset := range assets {
-		assetsData = append(assetsData, map[string]string{"Name": asset.GetName(), "URL": asset.GetBrowserDownloadURL()})
-		log.Println("Asset: ", asset.GetName(), asset.GetBrowserDownloadURL(), assetsData)
+	err = DownloadFileFromURL(url, fileName, token)
+	if err != nil {
+		return err
 	}
-
 	return nil
 }
 
-func GetReleaseZip(release *github.RepositoryRelease) error {
+func DownloadReleaseZip(release *github.RepositoryRelease) error {
 	token := viper.Get("SOURCE_TOKEN").(string)
 	repo := viper.Get("REPOSITORY").(string)
 	if release.TagName == nil {
@@ -118,49 +126,21 @@ func GetReleaseZip(release *github.RepositoryRelease) error {
 
 	if len(tag) > 1 && tag[0] == 'v' && unicode.IsDigit(rune(tag[1])) {
 		tagName = strings.TrimPrefix(tag, "v")
+	} else {
+		tagName = tag
 	}
 
 	fileName := fmt.Sprintf("%s-%s.zip", repo, tagName)
 
-	// Create the file
-	out, err := os.Create(fileName)
+	err := DownloadFileFromURL(url, fileName, token)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return fmt.Errorf("Error creating request: %s", err)
-	}
-
-	req.Header.Add("Authorization", "Bearer "+token)
-
-	// Get the data
-	resp, err := http.DefaultClient.Do(req)
-	log.Println("response", resp.StatusCode)
-	if err != nil {
-		log.Println("Error getting release zip: ", err)
-		return err
-	}
-	defer resp.Body.Close()
-	//log.Println("response", resp.Status)
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("HTTP request failed: %s", resp.Status)
-		return fmt.Errorf("HTTP request failed with status code %d, Message: %s", resp.StatusCode, resp.Body)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/zip" {
-		return fmt.Errorf("expected Content-Type to be application/zip, got %s", resp.Header.Get("Content-Type"))
-	}
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
+	return nil
 }
 
-func GetReleaseTarball(release *github.RepositoryRelease) error {
+func DownloadReleaseTarball(release *github.RepositoryRelease) error {
 	token := viper.Get("SOURCE_TOKEN").(string)
 	repo := viper.Get("REPOSITORY").(string)
 	if release.TagName == nil {
@@ -173,10 +153,21 @@ func GetReleaseTarball(release *github.RepositoryRelease) error {
 
 	if len(tag) > 1 && tag[0] == 'v' && unicode.IsDigit(rune(tag[1])) {
 		tagName = strings.TrimPrefix(tag, "v")
+	} else {
+		tagName = tag
 	}
 
 	fileName := fmt.Sprintf("%s-%s.tar.gz", repo, tagName)
 
+	err := DownloadFileFromURL(url, fileName, token)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DownloadFileFromURL(url, fileName, token string) error {
 	// Create the file
 	out, err := os.Create(fileName)
 	if err != nil {
@@ -186,29 +177,21 @@ func GetReleaseTarball(release *github.RepositoryRelease) error {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return fmt.Errorf("error creating request: %s", err)
+		panic(fmt.Errorf("error creating request: %s", err))
 	}
 
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	// Get the data
 	resp, err := http.DefaultClient.Do(req)
-	log.Println("tarball response", resp)
 	if err != nil {
-		log.Println("Error getting release tarball: ", err)
-		return err
+		return fmt.Errorf("error getting file: %v  err:%v", fileName, err)
 	}
 	defer resp.Body.Close()
-	log.Println("response", resp.Status)
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("HTTP request failed: %s", resp.Status)
 		return fmt.Errorf("HTTP request failed with status code %d, Message: %s", resp.StatusCode, resp.Body)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/gzip" {
-		log.Println("Content-Type", resp.Header.Get("Content-Type"))
-		return fmt.Errorf("expected Content-Type to be application/gzip, got %s", resp.Header.Get("Content-Type"))
 	}
 
 	// Write the body to file
@@ -216,304 +199,233 @@ func GetReleaseTarball(release *github.RepositoryRelease) error {
 	return err
 }
 
-func GetSourceOrganizationTeams() []map[string]string {
-	client := newGHGraphqlClient(viper.GetString("SOURCE_TOKEN"))
-
-	var query struct {
-		Organization struct {
-			Teams struct {
-				PageInfo struct {
-					EndCursor   githubv4.String
-					HasNextPage bool
-				}
-				Edges []struct {
-					Node struct {
-						Id          string
-						Name        string
-						Description string
-						Slug        string
-						Privacy     string
-						ParentTeam  struct {
-							Id   string
-							Slug string
-						}
-					}
-				}
-			} `graphql:"teams(first: $first, after: $after)"`
-		} `graphql:"organization(login: $login)"`
-	}
-
-	variables := map[string]interface{}{
-		"login": githubv4.String(viper.Get("SOURCE_ORGANIZATION").(string)),
-		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
-	}
-
-	var teams = []map[string]string{}
-	for {
-		err := client.Query(context.Background(), &query, variables)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, team := range query.Organization.Teams.Edges {
-			teams = append(teams, map[string]string{
-				"Id":             team.Node.Id,
-				"Name":           team.Node.Name,
-				"Slug":           team.Node.Slug,
-				"Description":    team.Node.Description,
-				"Privacy":        team.Node.Privacy,
-				"ParentTeamId":   team.Node.ParentTeam.Id,
-				"ParentTeamName": team.Node.ParentTeam.Slug,
-			})
-		}
-
-		if !query.Organization.Teams.PageInfo.HasNextPage {
-			break
-		}
-
-		variables["after"] = githubv4.NewString(query.Organization.Teams.PageInfo.EndCursor)
-	}
-
-	return teams
-}
-
-func GetTeamMemberships(team string) []map[string]string {
-	client := newGHGraphqlClient(viper.GetString("source_token"))
-
-	var query struct {
-		Organization struct {
-			Team struct {
-				Members struct {
-					PageInfo struct {
-						EndCursor   githubv4.String
-						HasNextPage bool
-					}
-					Edges []struct {
-						Node struct {
-							Login string
-							Email string
-						}
-						Role string
-					}
-				} `graphql:"members(first: $first, after: $after)"`
-			} `graphql:"team(slug: $slug)"`
-		} `graphql:"organization(login: $login)"`
-	}
-
-	variables := map[string]interface{}{
-		"login": githubv4.String(viper.Get("SOURCE_ORGANIZATION").(string)),
-		"slug":  githubv4.String(team),
-		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
-	}
-
-	var members = []map[string]string{}
-	for {
-		err := client.Query(context.Background(), &query, variables)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, member := range query.Organization.Team.Members.Edges {
-			members = append(members, map[string]string{"Login": member.Node.Login, "Email": member.Node.Email, "Role": member.Role})
-		}
-
-		if !query.Organization.Team.Members.PageInfo.HasNextPage {
-			break
-		}
-
-		variables["after"] = githubv4.NewString(query.Organization.Team.Members.PageInfo.EndCursor)
-	}
-
-	return members
-}
-
-func GetTeamRepositories(team string) []map[string]string {
-	client := newGHGraphqlClient(viper.GetString("source_token"))
-
-	var query struct {
-		Organization struct {
-			Team struct {
-				Repositories struct {
-					PageInfo struct {
-						EndCursor   githubv4.String
-						HasNextPage bool
-					}
-					Edges []struct {
-						Permission string
-						Node       struct {
-							Name string
-						}
-					}
-				} `graphql:"repositories(first: $first, after: $after)"`
-			} `graphql:"team(slug: $slug)"`
-		} `graphql:"organization(login: $login)"`
-	}
-
-	variables := map[string]interface{}{
-		"login": githubv4.String(viper.Get("SOURCE_ORGANIZATION").(string)),
-		"slug":  githubv4.String(team),
-		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
-	}
-
-	var repositories = []map[string]string{}
-	for {
-		err := client.Query(context.Background(), &query, variables)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, repo := range query.Organization.Team.Repositories.Edges {
-			repositories = append(repositories, map[string]string{"Name": repo.Node.Name, "Permission": repo.Permission})
-		}
-
-		if !query.Organization.Team.Repositories.PageInfo.HasNextPage {
-			break
-		}
-
-		variables["after"] = githubv4.NewString(query.Organization.Team.Repositories.PageInfo.EndCursor)
-	}
-
-	return repositories
-}
-
-func GetSourceOrganizationRepositories() []map[string]string {
-	client := newGHGraphqlClient(viper.GetString("source_token"))
-
-	var query struct {
-		Organization struct {
-			Repositories struct {
-				PageInfo struct {
-					EndCursor   githubv4.String
-					HasNextPage bool
-				}
-				Edges []struct {
-					Node struct {
-						Name string
-					}
-				}
-			} `graphql:"repositories(first: $first, after: $after)"`
-		} `graphql:"organization(login: $login)"`
-	}
-
-	variables := map[string]interface{}{
-		"login": githubv4.String(viper.Get("SOURCE_ORGANIZATION").(string)),
-		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
-	}
-
-	var repositories = []map[string]string{}
-	for {
-		err := client.Query(context.Background(), &query, variables)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, repo := range query.Organization.Repositories.Edges {
-			repositories = append(repositories, map[string]string{"Name": repo.Node.Name})
-		}
-
-		if !query.Organization.Repositories.PageInfo.HasNextPage {
-			break
-		}
-
-		variables["after"] = githubv4.NewString(query.Organization.Repositories.PageInfo.EndCursor)
-	}
-
-	return repositories
-}
-
-func GetRepositoryCollaborators(repository string) []map[string]string {
-	client := newGHGraphqlClient(viper.GetString("source_token"))
-
-	var query struct {
-		Repository struct {
-			Collaborators struct {
-				PageInfo struct {
-					EndCursor   githubv4.String
-					HasNextPage bool
-				}
-				Edges []struct {
-					Permission string
-					Node       struct {
-						Login string
-						Email string
-					}
-				}
-			} `graphql:"collaborators(first: $first, after: $after)"`
-		} `graphql:"repository(name: $name, owner: $owner)"`
-	}
-
-	variables := map[string]interface{}{
-		"owner": githubv4.String(viper.Get("SOURCE_ORGANIZATION").(string)),
-		"name":  githubv4.String(repository),
-		"first": githubv4.Int(100),
-		"after": (*githubv4.String)(nil),
-	}
-
-	var collaborators = []map[string]string{}
-	for {
-		err := client.Query(context.Background(), &query, variables)
-		if err != nil {
-			panic(err)
-		}
-
-		for _, collaborator := range query.Repository.Collaborators.Edges {
-			collaborators = append(collaborators, map[string]string{"Login": collaborator.Node.Login, "Email": collaborator.Node.Email, "Permission": collaborator.Permission})
-		}
-
-		if !query.Repository.Collaborators.PageInfo.HasNextPage {
-			break
-		}
-
-		variables["after"] = githubv4.NewString(query.Repository.Collaborators.PageInfo.EndCursor)
-	}
-
-	return collaborators
-}
-
-func AddTeamRepository(slug string, repo string, permission string) {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
-
-	fmt.Println("Adding repository to team: ", slug, repo, permission)
-
-	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	_, err := client.Teams.AddTeamRepoBySlug(ctx, viper.Get("TARGET_ORGANIZATION").(string), slug, viper.Get("TARGET_ORGANIZATION").(string), repo, &github.TeamAddTeamRepoOptions{Permission: permission})
-
-	if err != nil {
-		if strings.Contains(err.Error(), "422 Validation Failed") {
-			fmt.Println("Error adding repository to team: ", slug, repo, permission)
-		} else if strings.Contains(err.Error(), "404 Not Found") {
-			fmt.Println("Error adding repository to team, repository not found: ", slug, repo, permission)
-		} else {
-			fmt.Println("adding repository to team: ", slug, repo, permission, "Unknown error", err, err.Error())
-		}
-	}
-}
-
-func AddTeamMember(slug string, member string, role string) {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
-
-	role = strings.ToLower(role) // lowercase to match github api
-	fmt.Println("Adding member to team: ", slug, member, role)
-
-	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	_, _, err := client.Teams.AddTeamMembershipBySlug(ctx, viper.Get("TARGET_ORGANIZATION").(string), slug, member, &github.TeamAddTeamMembershipOptions{Role: role})
-	if err != nil {
-		fmt.Println("Error adding member to team: ", slug, member, err)
-	}
-}
-
-func GetTeamId(TeamName string) (int64, error) {
+func CreateRelease(release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
 	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	team, _, err := client.Teams.GetTeamBySlug(ctx, viper.Get("TARGET_ORGANIZATION").(string), TeamName)
+	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), release)
 	if err != nil {
-		fmt.Println("Error getting parent team ID: ", TeamName)
-		return 0, err
+		//fmt.Println("Error creating release: ", err)
+		return nil, err
 	}
-	return *team.ID, nil
+
+	return newRelease, nil
 }
+
+func UploadReleaseAsset(releaseID int64, asset *github.ReleaseAsset) error {
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
+
+	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
+	opts := &github.UploadOptions{
+		Name:      asset.GetName(),
+		Label:     asset.GetLabel(),
+		MediaType: *asset.ContentType,
+	}
+
+	log.Println("Options: ", opts)
+
+	dirName := tmpDir
+	fileName := dirName + "/" + asset.GetName()
+	log.Println("filename: ", fileName)
+
+	file, err := file.OpenFile(fileName)
+	if err != nil {
+		log.Println("Error opening file: ", fileName, err)
+		return fmt.Errorf("error opening file: %v err: %v", file, err)
+	}
+
+	defer file.Close()
+
+	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
+	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), releaseID)
+	newAsset, resp, err := client.Repositories.UploadReleaseAsset(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), releaseID, opts, file)
+	if err != nil {
+		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
+		return fmt.Errorf("error uploading asset to release: %v err: %v", releaseID, err)
+	}
+	log.Printf("response: %v, new asset: %v, err: %v", resp, newAsset, err)
+
+	err = os.Remove(asset.GetName())
+	if err != nil {
+		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
+	}
+
+	return nil
+}
+
+func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
+	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
+	opts := &github.UploadOptions{
+		Name:      asset.GetName(),
+		Label:     asset.GetLabel(),
+		MediaType: *asset.ContentType,
+	}
+
+	//log.Println("Options: ", opts)
+
+	dirName := tmpDir
+	fileName := dirName + "/" + asset.GetName()
+	log.Println("filename: ", fileName)
+
+	file, err := file.OpenFile(fileName)
+	if err != nil {
+		log.Println("Error opening file: ", fileName, err)
+		return fmt.Errorf("error opening file: %v err: %v", file, err)
+	}
+
+	stat, err := file.Stat()
+	if err != nil {
+		log.Println("Error getting file stats: ", fileName, err)
+	}
+
+	mediaType := mime.TypeByExtension(filepath.Ext(file.Name()))
+	if opts.MediaType != "" {
+		mediaType = asset.GetContentType()
+	}
+
+	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), uploadURL)
+
+	uploadURL = strings.TrimSuffix(uploadURL, "{?name,label}")
+
+	params := url.Values{}
+	params.Add("name", asset.GetName())
+	params.Add("label", asset.GetLabel())
+
+	uploadURLWithParams := fmt.Sprintf("%s?%s", uploadURL, params.Encode())
+
+	log.Println("uploadURLWithParams: ", uploadURLWithParams)
+
+	req, err := http.NewRequest("POST", uploadURLWithParams, file)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.ContentLength = stat.Size()
+
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", "Bearer "+viper.Get("TARGET_TOKEN").(string))
+	req.Header.Set("Content-Type", mediaType)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println("Error reading response body: ", err)
+		}
+		bodyString := string(bodyBytes)
+		log.Println("Response: ", bodyString)
+		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, resp.Body)
+	}
+	log.Printf("response: %v, err: %v", resp, err)
+
+	err = os.Remove(fileName)
+	if err != nil {
+		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
+	}
+
+	return nil
+}
+
+func NewUploadRequest(urlStr string, reader io.Reader, size int64, mediaType string) (*http.Request, error) {
+
+	req, err := http.NewRequest("POST", urlStr, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	req.ContentLength = size
+
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+	req.Header.Set("Content-Type", mediaType)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	return req, nil
+}
+
+// func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
+// 	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
+// 	opts := &github.UploadOptions{
+// 		Name:      asset.GetName(),
+// 		Label:     asset.GetLabel(),
+// 		MediaType: *asset.ContentType,
+// 	}
+
+// 	log.Println("Options: ", opts)
+
+// 	dirName := tmpDir
+// 	fileName := dirName + "/" + asset.GetName()
+// 	log.Println("filename: ", fileName)
+
+// 	fileData, err := os.ReadFile(fileName)
+// 	if err != nil {
+// 		log.Println("Error opening file: ", fileName, err)
+// 		return fmt.Errorf("error opening file: %v err: %v", fileName, err)
+// 	}
+
+// 	body := &bytes.Buffer{}
+// 	writer := multipart.NewWriter(body)
+
+// 	filePart, err := writer.CreateFormFile("file", filepath.Base(fileName))
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	_, err = filePart.Write(fileData)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	err = writer.Close()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), uploadURL)
+
+// 	req, err := http.NewRequest("POST", uploadURL, body)
+// 	if err != nil {
+// 		return fmt.Errorf("error creating request: %v", err)
+// 	}
+
+// 	req.Header.Set("Accept", "application/vnd.github+json")
+// 	req.Header.Set("Authorization", "Bearer "+viper.Get("TARGET_TOKEN").(string))
+// 	req.Header.Set("Content-Type", writer.FormDataContentType())
+// 	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
+
+// 	client := &http.Client{}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, err)
+// 	}
+
+// 	defer resp.Body.Close()
+
+// 	if resp.StatusCode != http.StatusOK {
+// 		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
+// 		bodyBytes, err := io.ReadAll(resp.Body)
+// 		if err != nil {
+// 			log.Println("Error reading response body: ", err)
+// 		}
+// 		bodyString := string(bodyBytes)
+// 		log.Println("Response: ", bodyString)
+// 		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, resp.Body)
+// 	}
+// 	log.Printf("response: %v, err: %v", resp, err)
+
+// 	err = os.Remove(fileName)
+// 	if err != nil {
+// 		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
+// 	}
+
+// 	return nil
+// }

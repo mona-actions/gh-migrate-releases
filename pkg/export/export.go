@@ -1,14 +1,16 @@
 package export
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
-
 	"github.com/pterm/pterm"
 )
 
-func CreateCSVs() {
+func CreateJSONs() {
 	// Get all teams from source organization
 	teamsSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Fetching teams from organization...")
 	releases, err := api.GetSourceRepositoryReleases()
@@ -16,10 +18,22 @@ func CreateCSVs() {
 		log.Fatalf("Error getting releases: %v", err)
 	}
 	log.Printf("Releases: %v", releases)
-	for _, release := range releases {
-		api.GetReleasesAssets(release)
-		//api.GetReleaseZip(release)
-		api.GetReleaseTarball(release)
+	for index, release := range releases {
+		//err := api.DownloadReleasesAssets(release)
+		// if err != nil {
+		// 	log.Fatalf("Error downloading assets: %v", err)
+		// }
+		filename := "release-" + fmt.Sprint(index) + ".json"
+		createJSON(release, filename)
+		// err := api.DownloadReleaseZip(release)
+		// if err != nil {
+		// 	log.Fatalf("Error downloading zip: %v", err)
+		// }
+
+		// err = api.DownloadReleaseTarball(release)
+		// if err != nil {
+		// 	log.Fatalf("Error downloading tarball: %v", err)
+		// }
 	}
 	teamsSpinnerSuccess.Success()
 
@@ -42,6 +56,24 @@ func CreateCSVs() {
 	// createCSVCollaboratorsSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Creating repository collaborator csv...")
 	// //createCSV(repositories.ExportRepositoryCollaborators(), viper.GetString("OUTPUT_FILE")+"-repository-collaborators.csv")
 	// createCSVCollaboratorsSpinnerSuccess.Success()
+}
+
+func createJSON(data interface{}, filename string) {
+
+	// Create a new file
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Fatalf("Error creating file: %v", err)
+	}
+	defer file.Close()
+
+	// Create a new JSON encoder and write to the file
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(data)
+	if err != nil {
+		log.Fatalf("Error encoding JSON to file: %v", err)
+	}
+
 }
 
 // func createCSV(data [][]string, filename string) {

@@ -46,7 +46,7 @@ func ModifyReleaseBody(releaseBody *string, filePath string) (*string, error) {
 	// Load handle map from file
 	handleMap, err := loadHandleMap(filePath)
 	if err != nil {
-		return nil, err
+		return releaseBody, err //return the original release body if an error occurs
 	}
 
 	// Replace old handles with new handles

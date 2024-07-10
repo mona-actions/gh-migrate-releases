@@ -29,7 +29,6 @@ func SyncReleases() {
 		if err != nil {
 			pterm.Error.Printf("Error modifying release body: %v", err)
 		}
-
 		// Create release api call
 		newRelease, err := api.CreateRelease(release)
 		if err != nil {

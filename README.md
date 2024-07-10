@@ -1,47 +1,47 @@
-# gh-migrate-teams
+# gh-migrate-releases
 
-`gh-migrate-teams` is a [GitHub CLI](https://cli.github.com) extension to assist in the migration of teams between GitHub organizations. [GitHub Enterprise Importer](https://github.com/github/gh-gei) provides an excellent feature set when migrating organizations, but there are some gaps when it comes to migrating teams. This extension aims to fill those gaps. Wether you are consolidating organizations in an [EMU](https://docs.github.com/en/enterprise-cloud@latest/admin/identity-and-access-management/using-enterprise-managed-users-for-iam/about-enterprise-managed-users), or auditing teams and collaborators in an existing organization, this extension can help.
+`gh-migrate-releases` is a [GitHub CLI](https://cli.github.com) extension to assist in the migration of releases between GitHub repositories. This extension aims to fill the gaps in the existing solutions for migrating releases. Whether you are consolidating repositories in an organization or auditing releases in an existing repository, this extension can help.
 
 ## Install
 
 ```bash
-gh extension install mona-actions/gh-migrate-teams
+gh extension install mona-actions/gh-migrate-releases
 ```
 
 ## Usage: Export
 
-Export team membership, team repository access, and repository collaborator access to CSV files.
+Creates a JSON file of the releases tied to a repository
 
 ```bash
 Usage:
-  migrate-teams export [flags]
+  migrate-releases export [flags]
 
 Flags:
   -f, --file-prefix string    Output filenames prefix
   -h, --help                  help for export
-  -u, --hostname string       GitHub Enterprise hostname url (optional) Ex. https://github.example.com
-  -o, --organization string   Organization to export
+  -u, --hostname string       GitHub Enterprise hostname url (optional) Ex. github.example.com
+  -o, --organization string   Organization of the repository
+  -r, --repository string     repository to export
   -t, --token string          GitHub token
 ```
 
 ## Usage: Sync
 
-Recreates teams, membership, and team repo roles from a source organization to a target organization
+Recreates releases,from a source repository to a target repository
 
 ```bash
 Usage:
-  migrate-teams sync [flags]
+  migrate-releases sync [flags]
 
 Flags:
   -h, --help                         help for sync
-  -m, --mapping-file string          Mapping file path to use for mapping teams members handles
-   -k, --skip-teams                   Skips adding members and repos to teams that already exist to save on API requests (default "false")
-  -u, --source-hostname string       GitHub Enterprise source hostname url (optional) Ex. https://github.example.com
-  -s, --source-organization string   Source Organization to sync teams from
+  -m, --mapping-file string          Mapping file path to use for mapping members handles
+  -r, --repository string            repository to export/import releases from/to
+  -u, --source-hostname string       GitHub Enterprise source hostname url (optional) Ex. github.example.com
+  -s, --source-organization string   Source Organization to sync releases from
   -a, --source-token string          Source Organization GitHub token. Scopes: read:org, read:user, user:email
-  -t, --target-organization string   Target Organization to sync teams from
+  -t, --target-organization string   Target Organization to sync releases from
   -b, --target-token string          Target Organization GitHub token. Scopes: admin:org
-  -z, --user-sync string             User sync mode. One of: all, disable (default "none") (default "all")
 ```
 
 ### Mapping File Example

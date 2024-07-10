@@ -14,8 +14,8 @@ import (
 // syncCmd represents the export command
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Recreates releases, membership, and team repo roles from a source organization to a target organization",
-	Long:  "Recreates releases, membership, and team repo roles from a source organization to a target organization",
+	Short: "Recreates releases,from a source repository to a target repository",
+	Long:  "Recreates releases,from a source repository to a target repository",
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get parameters
 		sourceOrganization := cmd.Flag("source-organization").Value.String()
@@ -24,6 +24,7 @@ var syncCmd = &cobra.Command{
 		targetToken := cmd.Flag("target-token").Value.String()
 		ghHostname := cmd.Flag("source-hostname").Value.String()
 		repository := cmd.Flag("repository").Value.String()
+		mappingFile := cmd.Flag("mapping-file").Value.String()
 
 		// Set ENV variables
 		os.Setenv("GHMT_SOURCE_ORGANIZATION", sourceOrganization)
@@ -32,6 +33,7 @@ var syncCmd = &cobra.Command{
 		os.Setenv("GHMT_TARGET_TOKEN", targetToken)
 		os.Setenv("GHMT_SOURCE_HOSTNAME", ghHostname)
 		os.Setenv("GHMT_REPOSITORY", repository)
+		os.Setenv("GHMT_MAPPING_FILE", mappingFile)
 
 		// Bind ENV variables in Viper
 		viper.BindEnv("SOURCE_ORGANIZATION")
@@ -40,6 +42,8 @@ var syncCmd = &cobra.Command{
 		viper.BindEnv("TARGET_TOKEN")
 		viper.BindEnv("SOURCE_HOSTNAME")
 		viper.BindEnv("REPOSITORY")
+		viper.BindEnv("MAPPING_FILE")
+
 		// Call syncreleases
 		sync.SyncReleases()
 	},
@@ -64,6 +68,8 @@ func init() {
 	syncCmd.Flags().StringP("repository", "r", "", "repository to export/import releases from/to")
 	syncCmd.MarkFlagRequired("repository")
 
-	syncCmd.Flags().StringP("source-hostname", "u", "", "GitHub Enterprise source hostname url (optional) Ex. https://github.example.com")
+	syncCmd.Flags().StringP("mapping-file", "m", "", "Mapping file path to use for mapping members handles")
+
+	syncCmd.Flags().StringP("source-hostname", "u", "", "GitHub Enterprise source hostname url (optional) Ex. github.example.com")
 
 }

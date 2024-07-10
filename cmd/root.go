@@ -13,8 +13,8 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "migrate-releases",
-	Short: "gh cli extension to assist in the migration of teams between GHEC enterprises",
-	Long:  `gh cli extension to assist in the migration of teams between GHEC enterprises`,
+	Short: "gh cli extension to assist in the migration of releases between GitHub repositories",
+	Long:  `gh cli extension to assist in the migration of releases between GitHub repositories`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

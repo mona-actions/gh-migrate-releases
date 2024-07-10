@@ -13,12 +13,9 @@ import (
 	"strings"
 	"unicode"
 
-	"log"
-
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
 	"github.com/google/go-github/v62/github"
-	"github.com/mona-actions/gh-migrate-releases/internal/file"
-	"github.com/shurcooL/githubv4"
+	"github.com/mona-actions/gh-migrate-releases/internal/files"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
@@ -31,30 +28,7 @@ type Release struct {
 
 var tmpDir = "tmp"
 
-func newGHGraphqlClient(token string) *githubv4.Client {
-	hostname := viper.GetString("SOURCE_HOSTNAME")
-	var client *githubv4.Client
-	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	httpClient := oauth2.NewClient(context.Background(), src)
-	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(httpClient.Transport)
-
-	if err != nil {
-		panic(err)
-	}
-	client = githubv4.NewClient(rateLimiter)
-
-	// Trim any trailing slashes from the hostname
-	hostname = strings.TrimSuffix(hostname, "/")
-
-	// If hostname is received, create a new client with the hostname
-	if hostname != "" {
-		client = githubv4.NewEnterpriseClient(hostname+"/api/graphql", rateLimiter)
-	}
-	return client
-}
-
-func newGHRestClient(token string) *github.Client {
-	hostname := viper.GetString("SOURCE_HOSTNAME")
+func newGHRestClient(token string, hostname string) *github.Client {
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
@@ -66,9 +40,8 @@ func newGHRestClient(token string) *github.Client {
 
 	client := github.NewClient(rateLimiter)
 
-	hostname = strings.TrimSuffix(hostname, "/")
-
 	if hostname != "" {
+		hostname = strings.TrimSuffix(hostname, "/")
 		client, err = github.NewClient(rateLimiter).WithEnterpriseURLs("https://"+hostname+"/api/v3", "https://"+hostname+"/api/uploads")
 		if err != nil {
 			panic(err)
@@ -79,13 +52,12 @@ func newGHRestClient(token string) *github.Client {
 }
 
 func GetSourceRepositoryReleases() ([]*github.RepositoryRelease, error) {
-	client := newGHRestClient(viper.GetString("source_token"))
+	client := newGHRestClient(viper.GetString("source_token"), viper.GetString("source_hostname"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	releases, _, err := client.Repositories.ListReleases(ctx, viper.Get("SOURCE_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), &github.ListOptions{})
 	if err != nil {
-		fmt.Println("Error getting releases: ", err)
-		return nil, err
+		return nil, fmt.Errorf("error getting releases: %v", err)
 	}
 
 	return releases, nil
@@ -190,7 +162,6 @@ func DownloadFileFromURL(url, fileName, token string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("HTTP request failed: %s", resp.Status)
 		return fmt.Errorf("HTTP request failed with status code %d, Message: %s", resp.StatusCode, resp.Body)
 	}
 
@@ -200,108 +171,57 @@ func DownloadFileFromURL(url, fileName, token string) error {
 }
 
 func CreateRelease(release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), release)
 	if err != nil {
-		//fmt.Println("Error creating release: ", err)
 		return nil, err
 	}
 
 	return newRelease, nil
 }
 
-func UploadReleaseAsset(releaseID int64, asset *github.ReleaseAsset) error {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"))
-
-	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
-	opts := &github.UploadOptions{
-		Name:      asset.GetName(),
-		Label:     asset.GetLabel(),
-		MediaType: *asset.ContentType,
-	}
-
-	log.Println("Options: ", opts)
-
-	dirName := tmpDir
-	fileName := dirName + "/" + asset.GetName()
-	log.Println("filename: ", fileName)
-
-	file, err := file.OpenFile(fileName)
-	if err != nil {
-		log.Println("Error opening file: ", fileName, err)
-		return fmt.Errorf("error opening file: %v err: %v", file, err)
-	}
-
-	defer file.Close()
-
-	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), releaseID)
-	newAsset, resp, err := client.Repositories.UploadReleaseAsset(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), releaseID, opts, file)
-	if err != nil {
-		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
-		return fmt.Errorf("error uploading asset to release: %v err: %v", releaseID, err)
-	}
-	log.Printf("response: %v, new asset: %v, err: %v", resp, newAsset, err)
-
-	err = os.Remove(asset.GetName())
-	if err != nil {
-		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
-	}
-
-	return nil
-}
-
 func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
-	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
-	opts := &github.UploadOptions{
-		Name:      asset.GetName(),
-		Label:     asset.GetLabel(),
-		MediaType: *asset.ContentType,
-	}
-
-	//log.Println("Options: ", opts)
 
 	dirName := tmpDir
 	fileName := dirName + "/" + asset.GetName()
-	log.Println("filename: ", fileName)
 
-	file, err := file.OpenFile(fileName)
+	// Open the file
+	file, err := files.OpenFile(fileName)
 	if err != nil {
-		log.Println("Error opening file: ", fileName, err)
 		return fmt.Errorf("error opening file: %v err: %v", file, err)
 	}
 
+	// Get the file size
 	stat, err := file.Stat()
 	if err != nil {
-		log.Println("Error getting file stats: ", fileName, err)
+		return fmt.Errorf("error getting file size of %v err: %v ", fileName, err)
 	}
 
+	// Get the media type
 	mediaType := mime.TypeByExtension(filepath.Ext(file.Name()))
-	if opts.MediaType != "" {
+	if *asset.ContentType != "" {
 		mediaType = asset.GetContentType()
 	}
 
-	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), uploadURL)
-
 	uploadURL = strings.TrimSuffix(uploadURL, "{?name,label}")
 
+	// Add the name and label to the URL
 	params := url.Values{}
 	params.Add("name", asset.GetName())
 	params.Add("label", asset.GetLabel())
 
 	uploadURLWithParams := fmt.Sprintf("%s?%s", uploadURL, params.Encode())
 
-	log.Println("uploadURLWithParams: ", uploadURLWithParams)
-
+	// Create the request
 	req, err := http.NewRequest("POST", uploadURLWithParams, file)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
+	// Set the headers
 	req.ContentLength = stat.Size()
-
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+viper.Get("TARGET_TOKEN").(string))
 	req.Header.Set("Content-Type", mediaType)
@@ -314,118 +234,14 @@ func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Println("Error reading response body: ", err)
-		}
-		bodyString := string(bodyBytes)
-		log.Println("Response: ", bodyString)
+	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, resp.Body)
 	}
-	log.Printf("response: %v, err: %v", resp, err)
 
-	err = os.Remove(fileName)
+	err = files.RemoveFile(fileName)
 	if err != nil {
 		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
 	}
 
 	return nil
 }
-
-func NewUploadRequest(urlStr string, reader io.Reader, size int64, mediaType string) (*http.Request, error) {
-
-	req, err := http.NewRequest("POST", urlStr, reader)
-	if err != nil {
-		return nil, err
-	}
-
-	req.ContentLength = size
-
-	if mediaType == "" {
-		mediaType = "application/octet-stream"
-	}
-	req.Header.Set("Content-Type", mediaType)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	return req, nil
-}
-
-// func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
-// 	log.Println("Received: ", asset.GetName(), asset.GetLabel(), *asset.ContentType)
-// 	opts := &github.UploadOptions{
-// 		Name:      asset.GetName(),
-// 		Label:     asset.GetLabel(),
-// 		MediaType: *asset.ContentType,
-// 	}
-
-// 	log.Println("Options: ", opts)
-
-// 	dirName := tmpDir
-// 	fileName := dirName + "/" + asset.GetName()
-// 	log.Println("filename: ", fileName)
-
-// 	fileData, err := os.ReadFile(fileName)
-// 	if err != nil {
-// 		log.Println("Error opening file: ", fileName, err)
-// 		return fmt.Errorf("error opening file: %v err: %v", fileName, err)
-// 	}
-
-// 	body := &bytes.Buffer{}
-// 	writer := multipart.NewWriter(body)
-
-// 	filePart, err := writer.CreateFormFile("file", filepath.Base(fileName))
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	_, err = filePart.Write(fileData)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	err = writer.Close()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	log.Println("Targeting: ", viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), uploadURL)
-
-// 	req, err := http.NewRequest("POST", uploadURL, body)
-// 	if err != nil {
-// 		return fmt.Errorf("error creating request: %v", err)
-// 	}
-
-// 	req.Header.Set("Accept", "application/vnd.github+json")
-// 	req.Header.Set("Authorization", "Bearer "+viper.Get("TARGET_TOKEN").(string))
-// 	req.Header.Set("Content-Type", writer.FormDataContentType())
-// 	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
-
-// 	client := &http.Client{}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, err)
-// 	}
-
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		//fmt.Println("Error uploading asset to release: ", releaseID, "err:", err)
-// 		bodyBytes, err := io.ReadAll(resp.Body)
-// 		if err != nil {
-// 			log.Println("Error reading response body: ", err)
-// 		}
-// 		bodyString := string(bodyBytes)
-// 		log.Println("Response: ", bodyString)
-// 		return fmt.Errorf("error uploading asset to release: %v err: %v", uploadURL, resp.Body)
-// 	}
-// 	log.Printf("response: %v, err: %v", resp, err)
-
-// 	err = os.Remove(fileName)
-// 	if err != nil {
-// 		return fmt.Errorf("error deleting asset from local storage: %v err: %v", asset.Name, err)
-// 	}
-
-// 	return nil
-// }

@@ -1,92 +1,60 @@
 package sync
 
 import (
-	"log"
-
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
+	"github.com/mona-actions/gh-migrate-releases/internal/mapping"
 	"github.com/pterm/pterm"
+	"github.com/spf13/viper"
 )
 
 func SyncReleases() {
-	// Get all teams from source organization
-	//teamsSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Fetching releases from repository...")
+	// Get all releases from source repository
+	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching releases from repository...")
 	releases, err := api.GetSourceRepositoryReleases()
 	if err != nil {
 		pterm.Error.Printf("Error getting releases: %v", err)
-		//teamsSpinnerSuccess.Fail()
+		fetchReleasesSpinner.Fail()
 	}
-	//teamsSpinnerSuccess.Success()
+	fetchReleasesSpinner.Success()
 
-	// Create teams in target organization
-	createReleasesSpinnerSuccess, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...")
+	// Create releases in target repository
+	createReleasesSpinner, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...")
+
+	//loop through each release and create it in the target repository
 	for _, release := range releases {
-		createReleasesSpinnerSuccess.UpdateText("Creating release: " + release.GetName())
+		createReleasesSpinner.UpdateText("Creating release: " + release.GetName())
+
+		// Modify release body to map new handles and map old urls to new urls
+		release.Body, err = mapping.ModifyReleaseBody(release.Body, viper.GetString("MAPPING_FILE"))
+		if err != nil {
+			pterm.Error.Printf("Error modifying release body: %v", err)
+		}
+
+		// Create release api call
 		newRelease, err := api.CreateRelease(release)
 		if err != nil {
-			pterm.Error.Printf("Error creating release: %v", err)
+			createReleasesSpinner.Fail()
+			pterm.Fatal.Printf("Error creating release: %v", err)
 		}
-		createReleasesSpinnerSuccess.UpdateText("Downloading assets...")
+		createReleasesSpinner.UpdateText("Downloading assets...")
+		// Download assets from source repository and upload to target repository
 		for _, asset := range release.Assets {
-			createReleasesSpinnerSuccess.UpdateText("Downloading asset..." + asset.GetName())
+
 			err := api.DownloadReleaseAssets(asset)
+			createReleasesSpinner.UpdateText("Downloading asset..." + asset.GetName())
 			if err != nil {
 				pterm.Error.Printf("Error downloading assets: %v", err)
 			}
-			createReleasesSpinnerSuccess.UpdateText("Uploading assets..." + asset.GetName())
-			log.Println("New Release ID: ", *newRelease.ID, newRelease.GetAssetsURL(), newRelease.GetUploadURL())
+			createReleasesSpinner.UpdateText("Uploading assets..." + asset.GetName())
+
 			err = api.UploadAssetViaURL(newRelease.GetUploadURL(), asset)
 			if err != nil {
 				pterm.Error.Printf("Error uploading assets: %v", err)
-				createReleasesSpinnerSuccess.Fail()
+				createReleasesSpinner.Fail()
 			}
 		}
 
 	}
-	createReleasesSpinnerSuccess.Success()
+	createReleasesSpinner.UpdateText("All Releases created successfully!")
+	createReleasesSpinner.Success()
 }
-
-// func mapMembers(team team.Team) team.Team {
-// 	for i, member := range team.Members {
-// 		// Check if member handle is in mapping file
-// 		target_handle, err := getTargetHandle(os.Getenv("GHMT_MAPPING_FILE"), member.Login)
-// 		if err != nil {
-// 			log.Println("Unable to read or open mapping file")
-// 		}
-// 		team.Members[i] = updateMemberHandle(member, member.Login, target_handle)
-// 	}
-// 	return team
-// }
-
-// func updateMemberHandle(member team.Member, source_handle string, target_handle string) team.Member {
-// 	// Update member handles
-// 	if member.Login == source_handle {
-// 		member.Login = target_handle
-// 	}
-// 	return member
-// }
-
-// func getTargetHandle(filename string, source_handle string) (string, error) {
-// 	// Open mapping file
-// 	file, err := os.Open(filename)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	defer file.Close()
-
-// 	// Parse mapping file
-// 	reader := csv.NewReader(file)
-// 	reader.FieldsPerRecord = -1 // Allow variable number of fields per record
-// 	records, err := reader.ReadAll()
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	// Find target value for source value
-// 	for _, record := range records[1:] {
-// 		if record[0] == source_handle {
-// 			return record[1], nil
-// 		}
-// 	}
-
-// 	return source_handle, nil
-// }

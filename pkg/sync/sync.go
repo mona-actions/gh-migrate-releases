@@ -9,16 +9,17 @@ import (
 
 func SyncReleases() {
 	// Get all releases from source repository
-	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching releases from repository...")
+	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching releases from repository: ", viper.GetString("REPOSITORY"))
 	releases, err := api.GetSourceRepositoryReleases()
 	if err != nil {
 		pterm.Error.Printf("Error getting releases: %v", err)
 		fetchReleasesSpinner.Fail()
 	}
+	fetchReleasesSpinner.UpdateText("Releases fetched successfully!")
 	fetchReleasesSpinner.Success()
 
 	// Create releases in target repository
-	createReleasesSpinner, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...")
+	createReleasesSpinner, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...", viper.GetString("REPOSITORY"))
 
 	//loop through each release and create it in the target repository
 	for _, release := range releases {
@@ -35,7 +36,6 @@ func SyncReleases() {
 			createReleasesSpinner.Fail()
 			pterm.Fatal.Printf("Error creating release: %v", err)
 		}
-		createReleasesSpinner.UpdateText("Downloading assets...")
 		// Download assets from source repository and upload to target repository
 		for _, asset := range release.Assets {
 

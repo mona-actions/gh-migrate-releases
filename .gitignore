@@ -10,6 +10,7 @@
 *.tar.gz
 *.zip
 *.json
+/tmp
 
 # Test binary, built with `go test -c`
 *.test

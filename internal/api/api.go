@@ -176,7 +176,11 @@ func CreateRelease(release *github.RepositoryRelease) (*github.RepositoryRelease
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), release)
 	if err != nil {
-		return nil, err
+		if strings.Contains(err.Error(), "already_exists") {
+			return nil, fmt.Errorf("release already exists: %v", release.GetName())
+		} else {
+			return nil, err
+		}
 	}
 
 	return newRelease, nil

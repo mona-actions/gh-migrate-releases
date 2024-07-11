@@ -1,6 +1,8 @@
 package sync
 
 import (
+	"strings"
+
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
 	"github.com/mona-actions/gh-migrate-releases/internal/mapping"
 	"github.com/pterm/pterm"
@@ -26,15 +28,24 @@ func SyncReleases() {
 		createReleasesSpinner.UpdateText("Creating release: " + release.GetName())
 
 		// Modify release body to map new handles and map old urls to new urls
+		release, err := mapping.AddSourceTimeStamps(release)
+		if err != nil {
+			pterm.Warning.Printf("Error adding source timestamps: %v", err)
+		}
 		release.Body, err = mapping.ModifyReleaseBody(release.Body, viper.GetString("MAPPING_FILE"))
 		if err != nil {
-			pterm.Error.Printf("Error modifying release body: %v", err)
+			pterm.Warning.Printf("Error modifying release body: %v", err)
 		}
 		// Create release api call
 		newRelease, err := api.CreateRelease(release)
 		if err != nil {
-			createReleasesSpinner.Fail()
-			pterm.Fatal.Printf("Error creating release: %v", err)
+			if strings.Contains(err.Error(), "already exists") {
+				pterm.Info.Printf("Release already exists: %v... skipping", release.GetName())
+				continue
+			} else {
+				createReleasesSpinner.Fail()
+				pterm.Fatal.Printf("Error creating release: %v", err)
+			}
 		}
 		// Download assets from source repository and upload to target repository
 		for _, asset := range release.Assets {

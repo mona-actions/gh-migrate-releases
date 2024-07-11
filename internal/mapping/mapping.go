@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/go-github/v62/github"
 	"github.com/spf13/viper"
 )
 
@@ -55,4 +56,19 @@ func ModifyReleaseBody(releaseBody *string, filePath string) (*string, error) {
 	}
 
 	return &updatedReleaseBody, nil
+}
+
+func AddSourceTimeStamps(release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
+	releaseBody := *release.Body
+
+	// Format the timestamps
+	createdAt := release.CreatedAt.Format("January 2, 2006 at 15:04:05 CST")
+	publishedAt := release.PublishedAt.Format("January 2, 2006 at 15:04:05 CST")
+
+	// Add source timestamps to release body
+	releaseBody = releaseBody + "\n\n" + ">Release Originally Created on: " + createdAt + "\n" + "> Release Originally Published on: " + publishedAt
+
+	release.Body = &releaseBody
+
+	return release, nil
 }

@@ -55,12 +55,24 @@ func GetSourceRepositoryReleases() ([]*github.RepositoryRelease, error) {
 	client := newGHRestClient(viper.GetString("source_token"), viper.GetString("source_hostname"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	releases, _, err := client.Repositories.ListReleases(ctx, viper.Get("SOURCE_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), &github.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error getting releases: %v", err)
+
+	var allReleases []*github.RepositoryRelease
+	opts := &github.ListOptions{PerPage: 100}
+
+	for {
+		releases, resp, err := client.Repositories.ListReleases(ctx, viper.Get("SOURCE_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), opts)
+		if err != nil {
+			return allReleases, fmt.Errorf("error getting releases: %v", err)
+		}
+		allReleases = append(allReleases, releases...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
-	return releases, nil
+	return allReleases, nil
+
 }
 
 func DownloadReleaseAssets(asset *github.ReleaseAsset) error {

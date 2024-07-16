@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
@@ -17,7 +18,7 @@ func SyncReleases() {
 		pterm.Error.Printf("Error getting releases: %v", err)
 		fetchReleasesSpinner.Fail()
 	}
-	fetchReleasesSpinner.UpdateText("Releases fetched successfully!")
+	fetchReleasesSpinner.UpdateText(fmt.Sprintf(" %d Releases fetched successfully!", len(releases)))
 	fetchReleasesSpinner.Success()
 
 	// Create releases in target repository
@@ -44,7 +45,7 @@ func SyncReleases() {
 				continue
 			} else {
 				createReleasesSpinner.Fail()
-				pterm.Fatal.Printf("Error creating release: %v", err)
+				pterm.Warning.Printf("Error creating release: %v", err)
 			}
 		}
 		// Download assets from source repository and upload to target repository

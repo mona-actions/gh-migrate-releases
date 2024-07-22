@@ -2,6 +2,7 @@ package sync
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
@@ -23,7 +24,7 @@ func SyncReleases() {
 
 	// Create releases in target repository
 	createReleasesSpinner, _ := pterm.DefaultSpinner.Start("Creating releases in target repository...", viper.GetString("REPOSITORY"))
-
+	var failed int
 	//loop through each release and create it in the target repository
 	for _, release := range releases {
 		createReleasesSpinner.UpdateText("Creating release: " + release.GetName())
@@ -44,6 +45,7 @@ func SyncReleases() {
 				pterm.Info.Printf("Release already exists: %v... skipping", release.GetName())
 				continue
 			} else {
+				failed++
 				createReleasesSpinner.Fail()
 				pterm.Warning.Printf("Error creating release: %v", err)
 			}
@@ -66,6 +68,24 @@ func SyncReleases() {
 		}
 
 	}
+
+	if os.Getenv("CI") == "true" && os.Getenv("GITHUB_ACTIONS") == "true" {
+		// Print in a README Table format the number of releases created
+		message := fmt.Sprintf(
+			"```\n"+
+				"| No. of Releases | Succeeded | Failed |\n"+
+				"| --------------- | --------- | ------ |\n"+
+				"| %d | %d | %d |\n"+
+				"```",
+			len(releases), len(releases)-failed, failed,
+		)
+		var id int = 1
+		err := api.WriteToIssue(id, message)
+		if err != nil {
+			pterm.Error.Printf("Error writing to issue: %v", err)
+		}
+	}
+
 	createReleasesSpinner.UpdateText("All Releases created successfully!")
 	createReleasesSpinner.Success()
 }

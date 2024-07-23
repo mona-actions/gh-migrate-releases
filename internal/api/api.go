@@ -265,8 +265,8 @@ func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
 func WriteToIssue(issueNumber int, comment string) error {
 	//client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
 
-	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	fmt.Printf("context: %v", ctx)
+	//ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
+	fmt.Printf("github context: %v", os.Getenv("GITHUB_CONTEXT"))
 	fmt.Printf("comment: %v", comment)
 	//_, _, err := client.Issues.CreateComment(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), issueNumber, &github.IssueComment{Body: &comment})
 	// if err != nil {

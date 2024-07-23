@@ -25,6 +25,7 @@ var syncCmd = &cobra.Command{
 		ghHostname := cmd.Flag("source-hostname").Value.String()
 		repository := cmd.Flag("repository").Value.String()
 		mappingFile := cmd.Flag("mapping-file").Value.String()
+		repositoryList := cmd.Flag("repository-list").Value.String()
 
 		// Set ENV variables
 		os.Setenv("GHMT_SOURCE_ORGANIZATION", sourceOrganization)
@@ -34,6 +35,7 @@ var syncCmd = &cobra.Command{
 		os.Setenv("GHMT_SOURCE_HOSTNAME", ghHostname)
 		os.Setenv("GHMT_REPOSITORY", repository)
 		os.Setenv("GHMT_MAPPING_FILE", mappingFile)
+		os.Setenv("GHMT_REPOSITORY_LIST", repositoryList)
 
 		// Bind ENV variables in Viper
 		viper.BindEnv("SOURCE_ORGANIZATION")
@@ -43,6 +45,7 @@ var syncCmd = &cobra.Command{
 		viper.BindEnv("SOURCE_HOSTNAME")
 		viper.BindEnv("REPOSITORY")
 		viper.BindEnv("MAPPING_FILE")
+		viper.BindEnv("REPOSITORY_LIST")
 
 		// Call syncreleases
 		sync.SyncReleases()
@@ -65,8 +68,9 @@ func init() {
 	syncCmd.Flags().StringP("target-token", "b", "", "Target Organization GitHub token. Scopes: admin:org")
 	syncCmd.MarkFlagRequired("target-token")
 
-	syncCmd.Flags().StringP("repository", "r", "", "repository to export/import releases from/to")
-	syncCmd.MarkFlagRequired("repository")
+	syncCmd.Flags().StringP("repository", "r", "", "repository to export/import releases from/to; can't be used with --repository-list")
+
+	syncCmd.Flags().StringP("repository-list-file", "l", "", "file path that contains list of repositories to export/import releases from/to; can't be used with --repository")
 
 	syncCmd.Flags().StringP("mapping-file", "m", "", "Mapping file path to use for mapping members handles")
 

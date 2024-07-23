@@ -21,7 +21,8 @@ Creates a JSON file of the releases tied to a repository
 ```bash
 gh migrate-releases export --hostname github.example.com -o <org-name> --repository <repo-name> --token <token>
 ```
-```
+
+```bash
 Usage:
   migrate-releases export [flags]
 
@@ -42,19 +43,38 @@ Recreates releases,from a source repository to a target repository
 gh migrate-releases sync --source-hostname github.example.com --source-organization <source-org> --source-token <source-token> --repository <repo-name> --target-organization <target-org> --target-token <target-token> --mapping-file "path/to/user-mappings.csv"
 ```
 
-```bash
+```txt
 Usage:
   migrate-releases sync [flags]
 
 Flags:
-  -h, --help                         help for sync
-  -m, --mapping-file string          Mapping file path to use for mapping members handles
-  -r, --repository string            repository to export/import releases from/to
-  -u, --source-hostname string       GitHub Enterprise source hostname url (optional) Ex. github.example.com
-  -s, --source-organization string   Source Organization to sync releases from
-  -a, --source-token string          Source Organization GitHub token. Scopes: read:org, read:user, user:email
-  -t, --target-organization string   Target Organization to sync releases from
-  -b, --target-token string          Target Organization GitHub token. Scopes: admin:org
+  -h, --help                          help for sync
+  -m, --mapping-file string           Mapping file path to use for mapping members handles
+  -r, --repository string             repository to export/import releases from/to; can't be used with --repository-list
+  -l, --repository-list-file string   file path that contains list of repositories to export/import releases from/to; can't be used with --repository
+  -u, --source-hostname string        GitHub Enterprise source hostname url (optional) Ex. github.example.com
+  -s, --source-organization string    Source Organization to sync releases from
+  -a, --source-token string           Source Organization GitHub token. Scopes: read:org, read:user, user:email
+  -t, --target-organization string    Target Organization to sync releases from
+  -b, --target-token string           Target Organization GitHub token. Scopes: admin:org
+```
+
+### Repository List Example
+
+A list of repositories can be provided to sync releases from multiple repositories to many repositories in a single target.
+
+Example:
+
+```txt
+https://github.example.com/owner/repo-name
+https://github.example.com/owner/repo-name2
+```
+
+or
+
+```txt
+owner/repo-name
+owner/repo-name2
 ```
 
 ### Mapping File Example
@@ -67,6 +87,7 @@ Example:
 source,target
 flastname,firstname.lastname
 ```
+
 
 ## License
 

@@ -63,7 +63,7 @@ func GetSourceRepositoryReleases(owner string, repository string) ([]*github.Rep
 	for {
 		releases, resp, err := client.Repositories.ListReleases(ctx, owner, repository, opts)
 		if err != nil {
-			return allReleases, fmt.Errorf("error getting releases: %v", err)
+			return allReleases, fmt.Errorf("unable to get releases: %v", err)
 		}
 		allReleases = append(allReleases, releases...)
 		if resp.NextPage == 0 {

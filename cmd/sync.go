@@ -25,7 +25,7 @@ var syncCmd = &cobra.Command{
 		ghHostname := cmd.Flag("source-hostname").Value.String()
 		repository := cmd.Flag("repository").Value.String()
 		mappingFile := cmd.Flag("mapping-file").Value.String()
-		repositoryList := cmd.Flag("repository-list").Value.String()
+		repositoryList := cmd.Flag("repository-list-file").Value.String()
 
 		// Set ENV variables
 		os.Setenv("GHMT_SOURCE_ORGANIZATION", sourceOrganization)
@@ -57,7 +57,6 @@ func init() {
 
 	// Flags
 	syncCmd.Flags().StringP("source-organization", "s", "", "Source Organization to sync releases from")
-	syncCmd.MarkFlagRequired("source-organization")
 
 	syncCmd.Flags().StringP("target-organization", "t", "", "Target Organization to sync releases from")
 	syncCmd.MarkFlagRequired("target-organization")

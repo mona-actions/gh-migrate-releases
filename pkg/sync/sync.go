@@ -85,6 +85,9 @@ func checkVars() {
 	if viper.GetString("REPOSITORY") != "" && viper.GetString("REPOSITORY_LIST") != "" {
 		pterm.Error.Println("Error: Cannot specify both a repository and a repository list")
 		os.Exit(1)
+	} else if viper.GetString("REPOSITORY") != "" && viper.GetString("SOURCE_ORGANIZATION") == "" {
+		pterm.Error.Println("Error: Source organization is required when specifying a repository")
+		os.Exit(1)
 	}
 }
 
@@ -102,7 +105,7 @@ func migrateRepositoryReleases(repository string) (int, int, error) {
 	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching releases from repository: ", repository)
 	releases, err := api.GetSourceRepositoryReleases(owner, repository)
 	if err != nil {
-		pterm.Error.Printf("Error getting releases: %v", err)
+		pterm.Fatal.Printf("Error: %v", err)
 		fetchReleasesSpinner.Fail()
 	}
 	fetchReleasesSpinner.UpdateText(fmt.Sprintf(" %d Releases fetched successfully!", len(releases)))

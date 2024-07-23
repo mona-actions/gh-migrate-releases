@@ -6,7 +6,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/go-github/v62/github"
 	"github.com/spf13/viper"
 )
 
@@ -105,5 +107,91 @@ func TestModifyReleaseBody(t *testing.T) {
 	err = os.Remove(filePath)
 	if err != nil {
 		t.Errorf("Failed to remove the test file: %v", err)
+	}
+}
+
+func TestModifyReleaseBodyWithNilBody(t *testing.T) {
+	var releaseBody *string
+	filePath := "test.csv"
+
+	// Create a test CSV file
+	file, err := os.Create(filePath)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	defer file.Close()
+
+	// Write test data to the CSV file
+	data := [][]string{
+		{"source", "target"},
+		{"naruto", "naruto.uzumaki"},
+	}
+	writer := csv.NewWriter(file)
+	for _, record := range data {
+		err := writer.Write(record)
+		if err != nil {
+			t.Fatalf("Failed to write to test file: %v", err)
+		}
+	}
+	writer.Flush()
+
+	// Set up viper configuration
+	viper.Set("SOURCE_HOSTNAME", "example.com")
+	viper.Set("SOURCE_ORGANIZATION", "source-org")
+	viper.Set("TARGET_ORGANIZATION", "target-org")
+
+	// Modify the release body
+	updatedReleaseBody, err := ModifyReleaseBody(releaseBody, filePath)
+
+	if err != nil {
+		t.Errorf("ModifyReleaseBody returned an error: %v", err)
+	}
+
+	if updatedReleaseBody != nil && *updatedReleaseBody != "" {
+		t.Errorf("Modified release body is not nil")
+	}
+
+	// Clean up the test file
+	err = os.Remove(filePath)
+	if err != nil {
+		t.Errorf("Failed to remove the test file: %v", err)
+	}
+}
+
+func TestAddSourceTimeStampsWithNilBody(t *testing.T) {
+	release := &github.RepositoryRelease{}
+	updatedRelease, err := AddSourceTimeStamps(release)
+	if err != nil {
+		t.Errorf("AddSourceTimeStamps returned an error: %v", err)
+	}
+	if updatedRelease.Body == nil {
+		t.Errorf("Updated release body is nil")
+	}
+}
+
+func TestAddSourceTimeStampsWithNilCreatedAt(t *testing.T) {
+	release := &github.RepositoryRelease{
+		Body: github.String("Test release body"),
+	}
+	updatedRelease, err := AddSourceTimeStamps(release)
+	if err != nil {
+		t.Errorf("AddSourceTimeStamps returned an error: %v", err)
+	}
+	if !strings.Contains(*updatedRelease.Body, "Release Originally Created on:") {
+		t.Errorf("Updated release body does not contain the expected created at timestamp")
+	}
+}
+
+func TestAddSourceTimeStampsWithNilPublishedAt(t *testing.T) {
+	release := &github.RepositoryRelease{
+		Body:      github.String("Test release body"),
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+	}
+	updatedRelease, err := AddSourceTimeStamps(release)
+	if err != nil {
+		t.Errorf("AddSourceTimeStamps returned an error: %v", err)
+	}
+	if !strings.Contains(*updatedRelease.Body, "Release Originally Published on:") {
+		t.Errorf("Updated release body does not contain the expected published at timestamp")
 	}
 }

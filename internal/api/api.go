@@ -279,7 +279,7 @@ func WriteToIssue(issueNumber int, comment string) error {
 
 	//ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	//fmt.Printf("github context: %v", os.Getenv("GITHUB_CONTEXT"))
-	fmt.Printf("github Issue Number: %v", issueEvent.Issue.Number)
+	fmt.Printf("github Issue Number: %v", *issueEvent.Issue.Number)
 	fmt.Printf("comment: %v", comment)
 	//_, _, err := client.Issues.CreateComment(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), issueNumber, &github.IssueComment{Body: &comment})
 	// if err != nil {

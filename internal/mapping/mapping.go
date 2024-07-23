@@ -36,7 +36,10 @@ func loadHandleMap(filePath string) (map[string]string, error) {
 func ModifyReleaseBody(releaseBody *string, filePath string) (*string, error) {
 	// Modify release body to map new handles and map old urls to new urls
 
-	updatedReleaseBody := *releaseBody
+	updatedReleaseBody := ""
+	if releaseBody != nil {
+		updatedReleaseBody = *releaseBody
+	}
 
 	if viper.GetString("SOURCE_HOSTNAME") != "" {
 		// Replace source hostname with GHEC hostname github.com

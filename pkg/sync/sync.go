@@ -79,11 +79,11 @@ func SyncReleases() {
 				"```",
 			len(releases), len(releases)-failed, failed,
 		)
-		issueNumber, err := api.GetIssueNumberfromContext()
+		organization, repository, issueNumber, err := api.GetDatafromGitHubContext()
 		if err != nil {
 			pterm.Error.Printf("Error getting issue number: %v", err)
 		}
-		err = api.WriteToIssue(issueNumber, message)
+		err = api.WriteToIssue(organization, repository, issueNumber, message)
 		if err != nil {
 			pterm.Error.Printf("Error writing releases table to issue: %v", err)
 		}

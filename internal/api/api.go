@@ -52,7 +52,7 @@ func newGHRestClient(token string, hostname string) *github.Client {
 	return client
 }
 
-func GetSourceRepositoryReleases() ([]*github.RepositoryRelease, error) {
+func GetSourceRepositoryReleases(owner string, repository string) ([]*github.RepositoryRelease, error) {
 	client := newGHRestClient(viper.GetString("source_token"), viper.GetString("source_hostname"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
@@ -61,9 +61,9 @@ func GetSourceRepositoryReleases() ([]*github.RepositoryRelease, error) {
 	opts := &github.ListOptions{PerPage: 100}
 
 	for {
-		releases, resp, err := client.Repositories.ListReleases(ctx, viper.Get("SOURCE_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), opts)
+		releases, resp, err := client.Repositories.ListReleases(ctx, owner, repository, opts)
 		if err != nil {
-			return allReleases, fmt.Errorf("error getting releases: %v", err)
+			return allReleases, fmt.Errorf("unable to get releases: %v", err)
 		}
 		allReleases = append(allReleases, releases...)
 		if resp.NextPage == 0 {
@@ -183,11 +183,11 @@ func DownloadFileFromURL(url, fileName, token string) error {
 	return err
 }
 
-func CreateRelease(release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
+func CreateRelease(repository string, release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
 	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), release)
+	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), repository, release)
 	if err != nil {
 		if strings.Contains(err.Error(), "already_exists") {
 			return nil, fmt.Errorf("release already exists: %v", release.GetName())

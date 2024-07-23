@@ -6,12 +6,15 @@ import (
 	"github.com/mona-actions/gh-migrate-releases/internal/api"
 	"github.com/mona-actions/gh-migrate-releases/internal/files"
 	"github.com/pterm/pterm"
+	"github.com/spf13/viper"
 )
 
 func CreateJSONs() {
 	// Get all teams from source organization
-	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching teams from organization...")
-	releases, err := api.GetSourceRepositoryReleases()
+	fetchReleasesSpinner, _ := pterm.DefaultSpinner.Start("Fetching releases from repository...")
+	repository := viper.GetString("REPOSITORY")
+	owner := viper.GetString("SOURCE_ORGANIZATION")
+	releases, err := api.GetSourceRepositoryReleases(owner, repository)
 	if err != nil {
 		pterm.Fatal.Printf("Error getting releases: %v", err)
 	}

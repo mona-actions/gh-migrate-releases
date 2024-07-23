@@ -2,8 +2,10 @@ package mapping
 
 import (
 	"encoding/csv"
+	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v62/github"
 	"github.com/spf13/viper"
@@ -59,11 +61,29 @@ func ModifyReleaseBody(releaseBody *string, filePath string) (*string, error) {
 }
 
 func AddSourceTimeStamps(release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
-	releaseBody := *release.Body
+	if release == nil {
+		return nil, fmt.Errorf("release is nil")
+	}
 
-	// Format the timestamps
-	createdAt := release.CreatedAt.Format("January 2, 2006 at 15:04:05 CST")
-	publishedAt := release.PublishedAt.Format("January 2, 2006 at 15:04:05 CST")
+	releaseBody := ""
+	if release.Body != nil {
+		releaseBody = *release.Body
+	}
+
+	var createdAt, publishedAt string
+	now := time.Now().Format("January 2, 2006 at 15:04:05 CST")
+
+	if release.CreatedAt != nil {
+		createdAt = release.CreatedAt.Format("January 2, 2006 at 15:04:05 CST")
+	} else {
+		createdAt = now
+	}
+
+	if release.PublishedAt != nil {
+		publishedAt = release.PublishedAt.Format("January 2, 2006 at 15:04:05 CST")
+	} else {
+		publishedAt = now
+	}
 
 	// Add source timestamps to release body
 	releaseBody = releaseBody + "\n\n" + ">Release Originally Created on: " + createdAt + "\n" + "> Release Originally Published on: " + publishedAt

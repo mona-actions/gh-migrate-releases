@@ -264,27 +264,30 @@ func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
 }
 
 func WriteToIssue(issueNumber int, comment string) error {
+
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+
+	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
+	_, _, err := client.Issues.CreateComment(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), issueNumber, &github.IssueComment{Body: &comment})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetIssueNumberfromContext() (int, error) {
 	githubContext := os.Getenv("GITHUB_CONTEXT")
 	if githubContext == "" {
-		return fmt.Errorf("GITHUB_CONTEXT is not set or empty")
+		return 0, fmt.Errorf("GITHUB_CONTEXT is not set or empty")
 	}
 
 	var issueEvent github.IssueEvent
 
 	err := json.Unmarshal([]byte(githubContext), &issueEvent)
 	if err != nil {
-		return fmt.Errorf("error unmarshalling GITHUB_CONTEXT: %v", err)
+		return 0, fmt.Errorf("error unmarshalling GITHUB_CONTEXT: %v", err)
 	}
-	//client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
 
-	//ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
-	//fmt.Printf("github context: %v", os.Getenv("GITHUB_CONTEXT"))
-	fmt.Printf("github Issue Number: %v", *issueEvent.Issue.Number)
-	fmt.Printf("comment: %v", comment)
-	//_, _, err := client.Issues.CreateComment(ctx, viper.Get("TARGET_ORGANIZATION").(string), viper.Get("REPOSITORY").(string), issueNumber, &github.IssueComment{Body: &comment})
-	// if err != nil {
-	// 	return err
-	// }
-
-	return nil
+	return *issueEvent.Issue.Number, nil
 }

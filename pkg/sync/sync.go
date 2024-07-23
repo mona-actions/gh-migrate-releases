@@ -79,10 +79,13 @@ func SyncReleases() {
 				"```",
 			len(releases), len(releases)-failed, failed,
 		)
-		var id int = 1
-		err := api.WriteToIssue(id, message)
+		issueNumber, err := api.GetIssueNumberfromContext()
 		if err != nil {
-			pterm.Error.Printf("Error writing to issue: %v", err)
+			pterm.Error.Printf("Error getting issue number: %v", err)
+		}
+		err = api.WriteToIssue(issueNumber, message)
+		if err != nil {
+			pterm.Error.Printf("Error writing releases table to issue: %v", err)
 		}
 	}
 

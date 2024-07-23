@@ -8,11 +8,20 @@
 gh extension install mona-actions/gh-migrate-releases
 ```
 
+## Upgrade
+
+```bash
+gh extension upgrade gh-migrate-releases
+```
+
 ## Usage: Export
 
 Creates a JSON file of the releases tied to a repository
 
 ```bash
+gh migrate-releases export --hostname github.example.com -o <org-name> --repository <repo-name> --token <token>
+```
+```
 Usage:
   migrate-releases export [flags]
 
@@ -28,6 +37,10 @@ Flags:
 ## Usage: Sync
 
 Recreates releases,from a source repository to a target repository
+
+```bash
+gh migrate-releases sync --source-hostname github.example.com --source-organization <source-org> --source-token <source-token> --repository <repo-name> --target-organization <target-org> --target-token <target-token> --mapping-file "path/to/user-mappings.csv"
+```
 
 ```bash
 Usage:

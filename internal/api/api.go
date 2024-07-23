@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -260,4 +261,36 @@ func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
 	}
 
 	return nil
+}
+
+func WriteToIssue(owner string, repository string, issueNumber int, comment string) error {
+
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+
+	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
+	_, _, err := client.Issues.CreateComment(ctx, owner, repository, issueNumber, &github.IssueComment{Body: &comment})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetDatafromGitHubContext() (string, string, int, error) {
+	githubContext := os.Getenv("GITHUB_CONTEXT")
+	if githubContext == "" {
+		return "", "", 0, fmt.Errorf("GITHUB_CONTEXT is not set or empty")
+	}
+
+	var issueEvent github.IssueEvent
+
+	err := json.Unmarshal([]byte(githubContext), &issueEvent)
+	if err != nil {
+		return "", "", 0, fmt.Errorf("error unmarshalling GITHUB_CONTEXT: %v", err)
+	}
+	organization := *issueEvent.Repository.Owner.Login
+	repository := *issueEvent.Repository.Name
+	issueNumber := *issueEvent.Issue.Number
+
+	return organization, repository, issueNumber, nil
 }

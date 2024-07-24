@@ -22,7 +22,7 @@ Creates a JSON file of the releases tied to a repository
 gh migrate-releases export --hostname github.example.com -o <org-name> --repository <repo-name> --token <token>
 ```
 
-```bash
+```txt
 Usage:
   migrate-releases export [flags]
 

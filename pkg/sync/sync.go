@@ -55,6 +55,7 @@ func SyncReleases() {
 		os.Exit(1)
 	}
 
+	// checks if running in a GitHub Actions Environment
 	if os.Getenv("CI") == "true" && os.Getenv("GITHUB_ACTIONS") == "true" {
 		// Print in a README Table format the number of releases created
 		message := fmt.Sprintf(
@@ -64,12 +65,16 @@ func SyncReleases() {
 			totalReleases, totalReleases-totalFailed, totalFailed,
 		)
 		organization, repository, issueNumber, err := api.GetDatafromGitHubContext()
-		if err != nil {
-			pterm.Error.Printf("Error getting issue number: %v", err)
-		}
-		err = api.WriteToIssue(organization, repository, issueNumber, message)
-		if err != nil {
-			pterm.Error.Printf("Error writing releases table to issue: %v", err)
+		if issueNumber == 0 {
+			return // skip if is not an issue event
+		} else {
+			if err != nil {
+				pterm.Error.Printf("Error getting issue number: %v", err)
+			}
+			err = api.WriteToIssue(organization, repository, issueNumber, message)
+			if err != nil {
+				pterm.Error.Printf("Error writing releases table to issue: %v", err)
+			}
 		}
 	} else {
 		pterm.Info.Printf("Total Releases: %d\n", totalReleases)

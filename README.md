@@ -88,6 +88,14 @@ source,target
 flastname,firstname.lastname
 ```
 
+### Disclaimers
+
+This tool uses the GitHub Releases API to create and update releases.  Therefore, the release author is the user whose token is used to create the release.  This tool does not attempt to recreate the original release author.
+
+In addition, the dates of the release will be the date the release was created, not the original release date. However, this tool will write as part of the release body the original release `created_at` and `published_at` timestamps.
+
+If this CLI tool is run through GitHub Actions and it was triggers by an issue_event, the tool will write a comment to the issue with the status of the release migration.
+
 ## License
 
 - [MIT](./license) (c) [Mona-Actions](https://github.com/mona-actions)

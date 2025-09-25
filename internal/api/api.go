@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -72,8 +73,29 @@ func GetSourceRepositoryReleases(owner string, repository string) ([]*github.Rep
 		opts.Page = resp.NextPage
 	}
 
+	// Sort releases by creation date in ascending order (earliest first)
+	// This ensures releases are processed from oldest to newest
+	sortReleasesByCreationDate(allReleases)
+
 	return allReleases, nil
 
+}
+
+// sortReleasesByCreationDate sorts releases by creation date in ascending order (earliest first)
+func sortReleasesByCreationDate(releases []*github.RepositoryRelease) {
+	sort.Slice(releases, func(i, j int) bool {
+		// Handle nil created dates by treating them as very old
+		if releases[i].CreatedAt == nil && releases[j].CreatedAt == nil {
+			return false // maintain original order for equal elements
+		}
+		if releases[i].CreatedAt == nil {
+			return true // nil dates come first
+		}
+		if releases[j].CreatedAt == nil {
+			return false // non-nil dates come after nil
+		}
+		return releases[i].CreatedAt.Before(releases[j].CreatedAt.Time)
+	})
 }
 
 func GetSourceRepositoryLatestRelease(owner string, repository string) (*github.RepositoryRelease, error) {

@@ -40,7 +40,7 @@ Flags:
 Recreates releases,from a source repository to a target repository
 
 ```bash
-gh migrate-releases sync --source-hostname github.example.com --source-organization <source-org> --source-token <source-token> --repository <repo-name> --target-organization <target-org> --target-token <target-token> --mapping-file "path/to/user-mappings.csv"
+gh migrate-releases sync --source-hostname github.example.com --source-organization <source-org> --source-token <source-token> --repository <repo-name> --target-hostname github.example.com --target-organization <target-org> --target-token <target-token> --mapping-file "path/to/user-mappings.csv"
 ```
 
 ```txt
@@ -55,6 +55,7 @@ Flags:
   -u, --source-hostname string        GitHub Enterprise source hostname url (optional) Ex. github.example.com
   -s, --source-organization string    Source Organization to sync releases from
   -a, --source-token string           Source Organization GitHub token. Scopes: read:org, read:user, user:email
+  -v, --target-hostname string        GitHub Enterprise target hostname url (optional) Ex. github.example.com
   -t, --target-organization string    Target Organization to sync releases from
   -b, --target-token string           Target Organization GitHub token. Scopes: admin:org
 ```

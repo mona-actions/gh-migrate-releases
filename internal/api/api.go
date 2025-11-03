@@ -110,7 +110,7 @@ func AssetExists(release *github.RepositoryRelease, assetName string, assetSize 
 
 // GetReleaseByTag retrieves a release from the target repository by its tag name
 func GetReleaseByTag(owner string, repository string, tagName string) (*github.RepositoryRelease, error) {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), viper.GetString("TARGET_HOSTNAME"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 
@@ -255,7 +255,7 @@ func DownloadFileFromURL(url, fileName, token string) error {
 }
 
 func CreateRelease(repository string, release *github.RepositoryRelease) (*github.RepositoryRelease, error) {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), viper.GetString("TARGET_HOSTNAME"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	newRelease, _, err := client.Repositories.CreateRelease(ctx, viper.Get("TARGET_ORGANIZATION").(string), repository, release)
@@ -336,7 +336,7 @@ func UploadAssetViaURL(uploadURL string, asset *github.ReleaseAsset) error {
 
 func WriteToIssue(owner string, repository string, issueNumber int, comment string) error {
 
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), viper.GetString("TARGET_HOSTNAME"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	_, _, err := client.Issues.CreateComment(ctx, owner, repository, issueNumber, &github.IssueComment{Body: &comment})
@@ -367,7 +367,7 @@ func GetDatafromGitHubContext() (string, string, int, error) {
 }
 
 func SetLatestRelease(owner string, repository string, releaseID int64) error {
-	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), "")
+	client := newGHRestClient(viper.GetString("TARGET_TOKEN"), viper.GetString("TARGET_HOSTNAME"))
 
 	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 	_, _, err := client.Repositories.EditRelease(ctx, owner, repository, releaseID, &github.RepositoryRelease{

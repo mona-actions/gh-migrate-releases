@@ -22,7 +22,8 @@ var syncCmd = &cobra.Command{
 		targetOrganization := cmd.Flag("target-organization").Value.String()
 		sourceToken := cmd.Flag("source-token").Value.String()
 		targetToken := cmd.Flag("target-token").Value.String()
-		ghHostname := cmd.Flag("source-hostname").Value.String()
+		ghSourceHostname := cmd.Flag("source-hostname").Value.String()
+		ghTargetHostname := cmd.Flag("target-hostname").Value.String()
 		repository := cmd.Flag("repository").Value.String()
 		mappingFile := cmd.Flag("mapping-file").Value.String()
 		repositoryList := cmd.Flag("repository-list-file").Value.String()
@@ -32,7 +33,8 @@ var syncCmd = &cobra.Command{
 		os.Setenv("GHMT_TARGET_ORGANIZATION", targetOrganization)
 		os.Setenv("GHMT_SOURCE_TOKEN", sourceToken)
 		os.Setenv("GHMT_TARGET_TOKEN", targetToken)
-		os.Setenv("GHMT_SOURCE_HOSTNAME", ghHostname)
+		os.Setenv("GHMT_SOURCE_HOSTNAME", ghSourceHostname)
+		os.Setenv("GHMT_TARGET_HOSTNAME", ghTargetHostname)
 		os.Setenv("GHMT_REPOSITORY", repository)
 		os.Setenv("GHMT_MAPPING_FILE", mappingFile)
 		os.Setenv("GHMT_REPOSITORY_LIST", repositoryList)
@@ -43,6 +45,7 @@ var syncCmd = &cobra.Command{
 		viper.BindEnv("SOURCE_TOKEN")
 		viper.BindEnv("TARGET_TOKEN")
 		viper.BindEnv("SOURCE_HOSTNAME")
+		viper.BindEnv("TARGET_HOSTNAME")
 		viper.BindEnv("REPOSITORY")
 		viper.BindEnv("MAPPING_FILE")
 		viper.BindEnv("REPOSITORY_LIST")
@@ -74,5 +77,6 @@ func init() {
 	syncCmd.Flags().StringP("mapping-file", "m", "", "Mapping file path to use for mapping members handles")
 
 	syncCmd.Flags().StringP("source-hostname", "u", "", "GitHub Enterprise source hostname url (optional) Ex. github.example.com")
+	syncCmd.Flags().StringP("target-hostname", "v", "", "GitHub Enterprise target hostname url (optional) Ex. github.example.com")
 
 }

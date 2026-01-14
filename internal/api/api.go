@@ -165,6 +165,8 @@ func DownloadReleaseAssets(asset *github.ReleaseAsset) error {
 		return fmt.Errorf("error downloading asset from API: %v", err)
 	}
 
+	defer readCloser.Close()
+
 	// If we got a redirect URL, download from there (for public assets)
 	if redirectURL != "" {
 		err = DownloadFileFromURL(redirectURL, fileName, viper.GetString("SOURCE_TOKEN"))
@@ -175,7 +177,6 @@ func DownloadReleaseAssets(asset *github.ReleaseAsset) error {
 	}
 
 	// Otherwise, read from the response body (for private assets)
-	defer readCloser.Close()
 
 	out, err := os.Create(fileName)
 	if err != nil {

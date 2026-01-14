@@ -148,12 +148,9 @@ func ReleaseExists(owner string, repository string, release *github.RepositoryRe
 }
 
 func DownloadReleaseAssets(asset *github.ReleaseAsset) error {
+	client := newGHRestClient(viper.GetString("SOURCE_TOKEN"), viper.GetString("SOURCE_HOSTNAME"))
+	ctx := context.WithValue(context.Background(), github.SleepUntilPrimaryRateLimitResetWhenRateLimited, true)
 
-	token := viper.Get("SOURCE_TOKEN").(string)
-
-	// Download the asset
-
-	url := asset.GetBrowserDownloadURL()
 	dirName := tmpDir
 	fileName := dirName + "/" + asset.GetName()
 
@@ -162,10 +159,36 @@ func DownloadReleaseAssets(asset *github.ReleaseAsset) error {
 		return err
 	}
 
-	err = DownloadFileFromURL(url, fileName, token)
+	// Use the GitHub API to download the asset (handles authentication properly)
+	readCloser, redirectURL, err := client.Repositories.DownloadReleaseAsset(ctx, viper.GetString("SOURCE_ORGANIZATION"), viper.GetString("REPOSITORY"), asset.GetID(), http.DefaultClient)
 	if err != nil {
-		return err
+		return fmt.Errorf("error downloading asset from API: %v", err)
 	}
+
+	defer readCloser.Close()
+
+	// If we got a redirect URL, download from there (for public assets)
+	if redirectURL != "" {
+		err = DownloadFileFromURL(redirectURL, fileName, viper.GetString("SOURCE_TOKEN"))
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Otherwise, read from the response body (for private assets)
+
+	out, err := os.Create(fileName)
+	if err != nil {
+		return fmt.Errorf("error creating file: %v", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, readCloser)
+	if err != nil {
+		return fmt.Errorf("error writing asset to file: %v", err)
+	}
+
 	return nil
 }
 

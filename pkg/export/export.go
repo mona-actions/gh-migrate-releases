@@ -18,8 +18,15 @@ func CreateJSONs() {
 	if err != nil {
 		pterm.Fatal.Printf("Error getting releases: %v", err)
 	}
+	filePrefix := viper.GetString("OUTPUT_FILE")
+	if filePrefix != "" {
+		lastChar := filePrefix[len(filePrefix)-1]
+		if lastChar != '-' && lastChar != '/' {
+			filePrefix = filePrefix + "-"
+		}
+	}
 	for index, release := range releases {
-		filename := "release-" + fmt.Sprint(index) + ".json"
+		filename := filePrefix + "release-" + fmt.Sprint(index) + ".json"
 		err := files.CreateJSON(release, filename)
 		if err != nil {
 			pterm.Fatal.Printf("Error creating JSON: %v", err)
